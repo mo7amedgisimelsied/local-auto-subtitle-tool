@@ -68,7 +68,7 @@ def transcribe_and_translate(video_path):
             "Start": start_time,
             "End": end_time,
             "English (Original)": text,
-            "Arabic (Editable)": arabic_text
+            "Arabic Translation (Click to edit)": arabic_text
         })
         print(f"Processed line {i}")
         
@@ -86,7 +86,7 @@ def burn_subtitles(video_path, edited_df):
         for index, row in edited_df.iterrows():
             srt_file.write(f"{row['ID']}\n")
             srt_file.write(f"{row['Start']} --> {row['End']}\n")
-            srt_file.write(f"{row['Arabic (Editable)']}\n\n")
+            srt_file.write(f"{row['Arabic Translation (Click to edit)']}\n\n")
 
     # 2. Burn subtitles using FFmpeg
     output_video = "output_arabic_subs_web.mp4"
@@ -113,15 +113,22 @@ def burn_subtitles(video_path, edited_df):
 # Gradio Web Interface Layout
 # ---------------------------------------------------------
 with gr.Blocks(title="Local AI Video Translator", theme=gr.themes.Soft()) as app:
-    gr.Markdown("# 🎬 Local AI Video Translator")
-    gr.Markdown("Upload a video, generate Arabic translations via Ollama, edit them, and burn them into a new file.")
+    # Centered Title and Subtext using inline HTML styling
+    gr.Markdown(
+        """
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h1>🎬 Local AI Video Translator</h1>
+            <p>Upload an English video, get an automatic Arabic translation...</p>
+        </div>
+        """
+    )
     
     with gr.Row():
         # Left Column: Inputs & Status
         with gr.Column(scale=1):
-            input_video = gr.Video(label="1. Upload Source Video")
-            btn_process = gr.Button("2. Transcribe & Translate", variant="primary")
-            status_text = gr.Textbox(label="Status Logging", interactive=False)
+            input_video = gr.Video(label="1. Choose your video")
+            btn_process = gr.Button("2. Start Translation", variant="primary")
+            status_text = gr.Textbox(label="Current Status", interactive=False)
             
         # Right Column: Data Editor & Final Output
         with gr.Column(scale=2):
@@ -131,8 +138,8 @@ with gr.Blocks(title="Local AI Video Translator", theme=gr.themes.Soft()) as app
                 interactive=True,
                 wrap=True
             )
-            btn_burn = gr.Button("4. Burn Subtitles to Video", variant="primary")
-            output_video = gr.Video(label="5. Final Output Video")
+            btn_burn = gr.Button("4. Review and Edit Text", variant="primary")
+            output_video = gr.Video(label="5. Your Finished Video")
 
     # Wire up the buttons to the Python functions
     btn_process.click(

@@ -44,55 +44,50 @@ def translate_to_arabic(text):
 # Pipeline Functions
 # ---------------------------------------------------------
 def transcribe_and_translate(video_path):
-    """Phase 1: Generates the transcription and translation for editing."""
+    """Phase 1: Generates the translation for editing."""
     if not video_path:
-        return pd.DataFrame(), "Please upload a video first."
+        return pd.DataFrame(), "Please choose a video file first."
 
-    print("Loading faster-whisper model...")
+    print("Loading text extraction model...")
     model = WhisperModel("base", device="cpu", compute_type="int8") 
     
-    print(f"Transcribing {video_path}...")
+    print(f"Reading audio from {video_path}...")
     segments, _ = model.transcribe(video_path, beam_size=5, language="en")
     
     data = []
-    print("Translating segments...")
+    print("Translating lines...")
     for i, segment in enumerate(segments, start=1):
         start_time = format_timestamp(segment.start)
         end_time = format_timestamp(segment.end)
         text = segment.text.strip()
         arabic_text = translate_to_arabic(text)
         
-        # We store this in a dictionary to easily convert to a Pandas DataFrame
         data.append({
-            "ID": i,
-            "Start": start_time,
-            "End": end_time,
-            "English (Original)": text,
+            "Line": i,
+            "Start Time": start_time,
+            "End Time": end_time,
+            "Original English": text,
             "Arabic Translation (Click to edit)": arabic_text
         })
-        print(f"Processed line {i}")
         
     df = pd.DataFrame(data)
-    return df, "Transcription and Translation complete. You can now edit the Arabic text below."
+    return df, "Done! Review the translation below, make any changes you like, then click step 4."
 
 def burn_subtitles(video_path, edited_df):
-    """Phase 2: Takes the edited table, makes an SRT, and burns it to the video."""
+    """Phase 2: Takes the edited table, makes an SRT, and adds it to the video."""
     if not video_path or edited_df.empty:
-        return None, "Missing video or subtitle data."
+        return None, "Please complete step 2 before creating the final video."
 
-    # 1. Generate the SRT file using a safe relative path
     srt_filename = "final_subtitles.srt"
     with open(srt_filename, "w", encoding="utf-8") as srt_file:
         for index, row in edited_df.iterrows():
-            srt_file.write(f"{row['ID']}\n")
-            srt_file.write(f"{row['Start']} --> {row['End']}\n")
+            srt_file.write(f"{row['Line']}\n")
+            srt_file.write(f"{row['Start Time']} --> {row['End Time']}\n")
             srt_file.write(f"{row['Arabic Translation (Click to edit)']}\n\n")
 
-    # 2. Burn subtitles using FFmpeg
     output_video = "output_arabic_subs_web.mp4"
-    style = "FontName=Arial,FontSize=10,PrimaryColour=&H00FFFFFF,BackColour=&000000000,BorderStyle=4,Outline=0,Shadow=0"
+    style = "FontName=Arial,FontSize=20,PrimaryColour=&H00FFFFFF,BackColour=&H80000000,BorderStyle=4,Outline=0,Shadow=0"
     
-    # Using the relative filename directly prevents the Windows drive letter colon (:) clash
     ffmpeg_command = [
         "ffmpeg", "-y",
         "-i", video_path,
@@ -102,23 +97,23 @@ def burn_subtitles(video_path, edited_df):
     ]
     
     try:
-        print("Burning subtitles...")
+        print("Creating final video...")
         subprocess.run(ffmpeg_command, check=True)
-        return output_video, "Success! Subtitles burned."
+        # We return the actual file path. Gradio will package it into a downloadable card.
+        return output_video, f"Success! The finished video has been created at: {os.path.abspath(output_video)}"
     except subprocess.CalledProcessError as e:
-        print(f"FFmpeg error: {e}")
-        return None, f"FFmpeg error occurred. Check terminal logs."
+        print(f"Error: {e}")
+        return None, "Something went wrong while making the video. Please try again."
 
 # ---------------------------------------------------------
-# Gradio Web Interface Layout
+# Simplified Web Interface Layout (With Download Card)
 # ---------------------------------------------------------
-with gr.Blocks(title="Local AI Video Translator", theme=gr.themes.Soft()) as app:
-    # Centered Title and Subtext using inline HTML styling
+with gr.Blocks(title="Easy Video Subtitler", theme=gr.themes.Soft()) as app:
     gr.Markdown(
         """
-        <div style="text-align: center; margin-bottom: 30px;">
-            <h1>🎬 Local AI Video Translator</h1>
-            <p>Upload an English video, get an automatic Arabic translation...</p>
+        <div style="text-align: center; margin-bottom: 20px;">
+            <h1>🎬 Automatic Video Translator</h1>
+            <p>Upload an English video, get an automatic Arabic translation, make quick fixes, and save your new video with subtitles.</p>
         </div>
         """
     )
@@ -130,18 +125,19 @@ with gr.Blocks(title="Local AI Video Translator", theme=gr.themes.Soft()) as app
             btn_process = gr.Button("2. Start Translation", variant="primary")
             status_text = gr.Textbox(label="Current Status", interactive=False)
             
-        # Right Column: Data Editor & Final Output
+        # Right Column: Data Editor
         with gr.Column(scale=2):
-            # This is the interactive table where you can click and edit the Arabic text
             subtitle_editor = gr.Dataframe(
-                label="3. Review & Edit Subtitles", 
+                label="3. Review and Edit Text", 
                 interactive=True,
                 wrap=True
             )
-            btn_burn = gr.Button("4. Review and Edit Text", variant="primary")
-            output_video = gr.Video(label="5. Your Finished Video")
+            btn_burn = gr.Button("4. Add Subtitles to Video", variant="primary")
 
-    # Wire up the buttons to the Python functions
+            # The compact File component replacing the bulky video player
+            output_file = gr.File(label="5. Download Finished Video")
+
+    # Wire up buttons
     btn_process.click(
         fn=transcribe_and_translate,
         inputs=[input_video],
@@ -151,7 +147,7 @@ with gr.Blocks(title="Local AI Video Translator", theme=gr.themes.Soft()) as app
     btn_burn.click(
         fn=burn_subtitles,
         inputs=[input_video, subtitle_editor],
-        outputs=[output_video, status_text]
+        outputs=[output_file, status_text]
     )
 
 if __name__ == "__main__":

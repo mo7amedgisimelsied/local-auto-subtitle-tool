@@ -23,10 +23,10 @@ ollama run translategemma
 Install the required Python modules via pip:
 
 ```bash
-pip install faster-whisper transformers torch sentencepiece gradio pandas requests
+pip install faster-whisper torch gradio pandas requests
 ```
 
-> Note: `gradio`, `pandas`, and `torch` are only required if you want to use the web interface (`app.py`). If you prefer to use the command-line interface (`batch_processor.py`), you can completely ignore those extra packages and install only the core dependencies.
+> Note: `gradio`, `pandas`, and `torch` are only required if you want to use the web interface (`app.py`). If you prefer to use the command-line interface (`batch_processor.py`), you can completely ignore those extra packages and install only the core dependencies (`faster-whisper` and `requests`).
 
 # Project Structure
 
